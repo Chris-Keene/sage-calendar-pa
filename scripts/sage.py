@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Sage: a calendar PA that turns open loops into sage-green to-do blocks.
 
-This is the deterministic half. Claude reads the sources (Gmail, Slack, Jira,
-calls, the calendar itself) and writes tasks.json; this script does the slot
+This is the deterministic half. Claude reads the sources (email, chat, task
+trackers, calls, the calendar itself) and writes tasks.json; this script does the slot
 maths, diffs against the blocks it placed last time, and emits the exact
 calendar operations to run. Keeping placement in code means times are computed,
 never guessed, and a re-run with nothing new produces zero changes.
@@ -35,7 +35,7 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_HOME = Path.home() / "Documents" / "Sage"
 
@@ -62,6 +62,7 @@ SAFE_KEY_RE = re.compile(r"[^A-Za-z0-9:_./#@-]")
 
 DEFAULT_CONFIG = {
     "calendar_id": "primary",
+    "calendar_provider": "google",
     "timezone": "Europe/London",
     "internal_domains": [],
     "slack_user_id": "",
@@ -113,7 +114,12 @@ DEFAULT_CONFIG = {
     "link_hosts": [
         "mail.google.com", "slack.com", "atlassian.net", "hubspot.com", "docs.google.com",
         "drive.google.com", "calendar.google.com", "gong.io", "zoom.us", "notion.so", "github.com",
+        # Other common sources, so their links survive when those connectors are used.
+        "outlook.office.com", "outlook.office365.com", "outlook.live.com", "teams.microsoft.com",
+        "sharepoint.com", "salesforce.com", "force.com", "linear.app", "asana.com", "clickup.com",
+        "monday.com", "pipedrive.com", "attio.com", "fireflies.ai", "granola.ai", "otter.ai",
     ],
+    "extra_link_hosts": [],
 }
 
 EMPTY_STATE = {"version": 1, "last_run": None, "tasks": {}, "blocks": {}, "banner_dismissed": []}
@@ -462,7 +468,8 @@ def safe_links(task, cfg):
         url = str(link.get("url", ""))
         host = (urlparse(url).hostname or "").lower()
         # Links come from email/Slack content, so only known work hosts make it in.
-        if url.startswith("https://") and any(host == h or host.endswith("." + h) for h in cfg["link_hosts"]):
+        hosts = list(cfg["link_hosts"]) + list(cfg.get("extra_link_hosts") or [])
+        if url.startswith("https://") and any(host == h or host.endswith("." + h) for h in hosts):
             out.append((short(link.get("label") or host, 40), url))
     return out
 
@@ -593,6 +600,39 @@ def snooze(task, now, cfg, tz):
     until = working_days_after(now.date(), cfg["snooze_working_days"], cfg)[-1]
     task.update(status="snoozed", snoozed_until=iso(at(until, hm(cfg["work_start"]), tz), tz))
     return until
+
+
+def neutral_change(args, cfg):
+    """What an op does, in no particular calendar's field names.
+
+    `args` is shaped for the Google Calendar connector, the tested path. Any other
+    calendar maps `change` onto its own tool instead (references/CONNECTORS.md), so
+    the slot maths and diffing stay in one place whatever calendar is connected."""
+    names = {"summary": "title", "startTime": "start", "endTime": "end",
+             "timeZone": "time_zone", "description": "description_html"}
+    out = {new: args[old] for old, new in names.items() if old in args}
+    if args.get("allDay"):
+        # Google wants UTC midnights here; everyone else wants plain dates (end exclusive).
+        out["all_day"] = True
+        out["start_date"] = out.pop("start")[:10]
+        out["end_date"] = out.pop("end")[:10]
+    if "colorId" in args:
+        out["colour"] = "done" if str(args["colorId"]) == str(cfg["done_colour_id"]) else "sage"
+    if "visibility" in args:
+        out["private"] = args["visibility"] == "private"
+    if "availability" in args:
+        out["show_as"] = "busy" if args["availability"] == "AVAILABILITY_BUSY" else "free"
+    if "overrideReminders" in args:
+        out["reminder_minutes"] = args["overrideReminders"][0]["minutes"]
+    elif args.get("useDefaultReminders") is False:
+        out["reminder_minutes"] = None
+    return out
+
+
+def with_changes(ops, cfg):
+    for op in ops:
+        op["change"] = {} if op["op"] == "delete" else neutral_change(op["args"], cfg)
+    return ops
 
 
 def make_plan(cfg, state, events_doc, tasks_doc, inbox_tasks, now, accounts=None):
@@ -1064,8 +1104,8 @@ def make_plan(cfg, state, events_doc, tasks_doc, inbox_tasks, now, accounts=None
     for op in ops:
         counts[op["op"]] += 1
     summary = render_summary(cfg, tz, now, ops, st, overflow, heads_up, notes, tasks_doc, rank)
-    return {"version": VERSION, "now": iso(now, tz), "ops": ops, "counts": counts, "summary": summary,
-            "ledger_before": before, "ledger_after": st}
+    return {"version": VERSION, "now": iso(now, tz), "ops": with_changes(ops, cfg), "counts": counts,
+            "summary": summary, "ledger_before": before, "ledger_after": st}
 
 
 def quick_unit(units, batch, tasks, sort_key, deadline_of, cfg, rank):
@@ -1219,9 +1259,10 @@ def new_run(now, cfg, tz, force=False, suffix=""):
     return rd, meta
 
 
-IDENTITY_KEYS = ("my_email", "calendar_id", "timezone", "internal_domains", "slack_user_id",
+IDENTITY_KEYS = ("my_email", "calendar_id", "calendar_provider", "timezone", "internal_domains", "slack_user_id",
                  "slack_workspace_url", "jira_cloud_id", "jira_site_url")
-INIT_FLAGS = {"email": "my_email", "calendar": "calendar_id", "timezone": "timezone",
+INIT_FLAGS = {"email": "my_email", "calendar": "calendar_id", "calendar_provider": "calendar_provider",
+              "timezone": "timezone",
               "slack_user": "slack_user_id", "slack_workspace": "slack_workspace_url",
               "jira_cloud_id": "jira_cloud_id", "jira_site": "jira_site_url",
               "work_start": "work_start", "work_end": "work_end", "visibility": "visibility",
@@ -1399,8 +1440,10 @@ def cmd_plan(args):
     (rd / "summary.md").write_text(plan["summary"] + "\n")
     print(plan["summary"])
     print()
-    print(f"{len(plan['ops'])} op(s) in {rd / 'plan.json'}. Execute each one's args with the matching "
-          f"calendar tool, then write results.json and run: python3 sage.py commit {rd / 'results.json'}")
+    how = ("each one's args with the matching calendar tool" if cfg.get("calendar_provider", "google") == "google"
+           else "each one's change through the calendar mapping in connectors.md (data folder)")
+    print(f"{len(plan['ops'])} op(s) in {rd / 'plan.json'}. Execute {how}, "
+          f"then write results.json and run: python3 sage.py commit {rd / 'results.json'}")
 
 
 def apply_results(plan, raw):
@@ -1500,7 +1543,7 @@ def cmd_clear(args):
             del after["blocks"][eid]
     summary = (f"Clear: {len(ops)} future Sage block(s) to delete. Tasks stay in the ledger. "
                f"Execute the ops, then commit {rd / 'results.json'}.")
-    save_json(rd / "plan.json", {"version": VERSION, "now": iso(now, tz), "ops": ops, "summary": summary,
+    save_json(rd / "plan.json", {"version": VERSION, "now": iso(now, tz), "ops": with_changes(ops, cfg), "summary": summary,
                                  "counts": {"delete": len(ops)}, "ledger_before": st, "ledger_after": after})
     print(summary)
     for op in ops:

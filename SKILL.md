@@ -1,12 +1,14 @@
 ---
 name: sage-calendar-pa
 description: >-
-  Sage, a calendar PA for SEs and AEs. Reads what people are waiting on you for
-  (Gmail, Slack mentions and DMs, Jira, upcoming meetings that need prep, your
-  own promises, and Gong calls when connected), ranks it by account tier and
-  urgency, and places it as sage-green "Focus:" to-do blocks in the gaps of
-  your Google Calendar. It moves them when meetings land, clears them when
-  you've replied, and runs three times a weekday once scheduled. Use when
+  Sage, a calendar PA for people whose calendars are mostly other people's
+  meetings (and whose brains don't do planning). Reads what people are waiting
+  on you for (email, chat mentions and DMs, task trackers, upcoming meetings
+  that need prep, your own promises, and call notes), ranks it by account tier
+  and urgency, and places it as sage-green "Focus:" to-do blocks in the gaps of
+  your calendar: Google Calendar, Gmail, Slack and Jira are tested, Outlook and
+  other tools work by mapping. It moves them when meetings land, clears them
+  when you've replied, and runs three times a weekday once scheduled. Use when
   someone says "sage", "plan my day", "replan", "find me time for my to-dos",
   "block out time for my follow-ups", "what's on my list", "X is done",
   "add X to my list", "make <account> tier 1", "set up Sage", "deep sweep",
@@ -26,6 +28,8 @@ Sage turns open loops into calendar blocks. Claude does the judgement (reading s
 ## What to do
 
 **First time** (no `DATA_DIR/config.json`, or the user says "set up Sage"): follow `references/SETUP.md`. It discovers identity, drafts account tiers from HubSpot, does a dry run the user approves, and only with their explicit yes switches on the schedule and the permissions unattended runs need.
+
+**Other tools:** if the user's calendar, email, chat, tracker or CRM isn't the tested Google, Slack, Jira and HubSpot set, `references/CONNECTORS.md` explains how Sage maps onto them, and setup step 4b writes `DATA_DIR/connectors.md`.
 
 **Otherwise**, follow `references/RUNBOOK.md`, which holds the hard safety rules, the source queries, the task format and the calendar steps:
 

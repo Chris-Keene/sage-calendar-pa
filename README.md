@@ -1,8 +1,12 @@
 # Sage 🌿 calendar PA
 
-**Experimental.** Sage reads what people are waiting on you for, ranks it by how much it matters, and puts it in the gaps in your Google Calendar as sage-green **"🌿 Focus: …"** blocks, covering today and the next 3 working days. When a meeting lands on a block, Sage moves it. When you've replied, it clears it. Once scheduled, it replans three times every weekday, and once a week it sweeps a month back for anything that slipped through.
+**Experimental.** Sage reads what people are waiting on you for, ranks it by how much it matters, and puts it in the gaps in your calendar as sage-green **"🌿 Focus: …"** blocks, covering today and the next 3 working days. When a meeting lands on a block, Sage moves it. When you've replied, it clears it. Once scheduled, it replans three times every weekday, and once a week it sweeps a month back for anything that slipped through.
 
 Built for anyone whose calendar is mostly other people's meetings and whose to-do list is scattered across email, Slack, Jira and "I'll send that over after the call". It started life with sales engineers and account execs, so it knows about deals and account priorities, but nothing about it is sales-only.
+
+## Why it exists
+
+I have ADHD, and planning is the part it takes from me completely. I can do the work; deciding what to do when, and holding on to everything I've promised people, is what falls apart. A to-do app doesn't fix that, because it's one more thing to plan, maintain and remember to open. Sage does the planning itself and puts the answer where I already look: the next thing is on my calendar, at a time it fits, with a line saying why. It has made a dramatic difference to how my weeks go. If your brain works the same way, this was built for you.
 
 ## When to reach for it
 
@@ -14,9 +18,22 @@ Built for anyone whose calendar is mostly other people's meetings and whose to-d
 
 - **The Claude desktop app** (Code tab) on a Mac. Scheduled runs use its Scheduled tasks feature and only run while the app is open; a missed run fires on next launch. On demand, Sage works in any Claude Code session.
 - **Python 3.9+ at `/usr/bin/python3`**, which comes with the Xcode Command Line Tools (`xcode-select --install`). Standard library only, nothing to pip install.
-- **Connectors:** Google Calendar and Gmail (required); Slack (strongly recommended); Atlassian for Jira, HubSpot for drafting account tiers, and Gong for call action items (all optional). Connect them in claude.ai connector settings.
+- **Connectors:** a calendar and an email connector (required); chat (strongly recommended); a task tracker, a CRM for drafting account tiers, and call notes (all optional). Connect them in claude.ai connector settings. See *Works with* below.
 
 It will **not** work as a skill uploaded to claude.ai on the web: it needs local Python, a data folder that persists between runs, and scheduled tasks.
+
+## Works with
+
+| | Tested daily | Supported by mapping (untested) |
+|---|---|---|
+| Calendar | Google Calendar | Microsoft 365 / Outlook, or any calendar connector that can list, create, update and delete events and keeps their descriptions intact |
+| Email | Gmail | Outlook mail, or any mail connector with search |
+| Chat | Slack | Microsoft Teams |
+| Tasks | Jira | Linear, Asana, ClickUp, Monday, GitHub issues |
+| CRM (account tiers) | HubSpot | Salesforce, Pipedrive, Attio, or just tell it your top accounts |
+| Call notes | Gong, Gemini notes emails | Fireflies, Granola, Otter, Zoom or Teams recaps |
+
+The engine never talks to any service itself. It says what should change, and Claude carries that out through your own connectors, so another tool only needs mapping, not new code. [`references/CONNECTORS.md`](references/CONNECTORS.md) has the details. Setup maps your tools, and for a non-Google calendar it runs a round-trip test with one throwaway event before Sage touches anything else.
 
 ## Install and set up
 
@@ -105,10 +122,15 @@ Highest score gets time first. Within any back-to-back run of blocks, the highes
 | `SKILL.md` | Entry point: routes first-time users to setup, everything else to the runbook |
 | `references/SETUP.md` | First-time setup procedure |
 | `references/RUNBOOK.md` | The per-run procedure, including the safety rules and source queries |
+| `references/CONNECTORS.md` | How Sage maps onto calendars, email, chat, trackers and CRMs other than the tested set |
 | `scripts/sage.py` | The engine: scoring, gap finding, placement, diffing, ledger (Python stdlib) |
 | `templates/` | Starting `config.json`, `accounts.md`, `inbox.md` |
 | `tick-webapp/` | Optional one-click "✓ Mark done": `Code.gs` (Google Apps Script) and its `SETUP.md` |
-| `tests/` | 44 planner tests: `/usr/bin/python3 -m unittest tests.test_sage` from the skill folder |
+| `tests/` | 47 planner tests: `/usr/bin/python3 -m unittest tests.test_sage` from the skill folder |
+
+## What's new in 1.2.0
+
+- **Other calendars and tools:** every calendar change now also comes as a neutral `change` (title, times, colour, private, busy or free), so a calendar other than Google can be driven through a mapping that setup writes and tests. Email, chat, tracker, call-notes and CRM sources can be swapped the same way. Links from Microsoft 365, Salesforce, Linear and others are kept, and you can add your own hosts.
 
 ## What's new in 1.1.0
 

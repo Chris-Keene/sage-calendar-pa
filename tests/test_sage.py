@@ -524,6 +524,48 @@ class PlannerTests(unittest.TestCase):
         days = sage.planning_days(sage.parse_dt("2026-10-15T08:15:00+01:00", TZ), cfg(), TZ)
         self.assertEqual([d.isoformat() for d in days], ["2026-10-15", "2026-10-16", "2026-10-19", "2026-10-20"])
 
+    def test_every_op_says_what_it_means_without_google_field_names(self):
+        h = Harness(self)
+        p = h.plan([task("a", "Send Acme pricing", 30, 1), task("h", "Read a candidate's CV", 30, 2, private=True)])
+        blocks = [o for o in p["ops"] if o["op"] == "create" and not o["args"].get("allDay")]
+        self.assertTrue(blocks)
+        for o in blocks:
+            c = o["change"]
+            self.assertEqual(c["title"], o["args"]["summary"])
+            self.assertEqual((c["start"], c["end"]), (o["args"]["startTime"], o["args"]["endTime"]))
+            self.assertEqual(c["colour"], "sage")
+            self.assertIn(c["show_as"], ("free", "busy"))
+            self.assertIn("sage:v1", c["description_html"])
+            self.assertNotIn("colorId", c)
+        private = [o["change"]["private"] for o in blocks if "candidate" in o["change"]["title"]]
+        self.assertEqual(private, [True])
+        banner = next(o for o in p["ops"] if o["args"].get("allDay"))["change"]
+        self.assertTrue(banner["all_day"] and banner["private"])
+        self.assertEqual((banner["start_date"], banner["end_date"]), ("2026-10-08", "2026-10-09"))
+        self.assertNotIn("start", banner)
+
+    def test_done_and_delete_ops_carry_neutral_changes_too(self):
+        h = Harness(self)
+        tasks = [task("a", "Send Acme pricing", 30, 1)]
+        h.run(tasks)
+        h.sage_events("task")[0]["color_id"] = "8"
+        p = h.run(tasks)
+        done = next(o for o in p["ops"] if o["op"] == "update" and o["args"].get("colorId") == "8")
+        self.assertEqual((done["change"]["colour"], done["change"]["show_as"]), ("done", "free"))
+        self.assertTrue(done["change"]["title"].startswith("✓ "))
+        self.assertEqual(sage.with_changes([{"op": "delete", "args": {"eventId": "x"}}], cfg())[0]["change"], {})
+
+    def test_links_from_other_tools_survive_and_hosts_can_be_added(self):
+        t = task("a", "Reply", 10, 2, links=[
+            {"label": "Outlook", "url": "https://outlook.office.com/mail/id/abc"},
+            {"label": "Linear", "url": "https://linear.app/acme/issue/ENG-1"},
+            {"label": "Own CRM", "url": "https://crm.acme.example/deal/9"},
+            {"label": "Elsewhere", "url": "https://evil.example/x"}])
+        labels = [lbl for lbl, _ in sage.safe_links(t, cfg())]
+        self.assertEqual(labels, ["Outlook", "Linear"])
+        labels = [lbl for lbl, _ in sage.safe_links(t, cfg(extra_link_hosts=["crm.acme.example"]))]
+        self.assertEqual(labels, ["Outlook", "Linear", "Own CRM"])
+
     def test_truncated_copy_of_a_title_is_not_a_rename(self):
         long = "\U0001F33F Focus: Quick hits (3): Reply to Jo (Globex): book the…; Answer Sam's comment on the…"
         self.assertTrue(sage.same_title(long, long[:60] + "…"))

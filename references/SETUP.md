@@ -8,9 +8,10 @@ Throughout: `SKILL_DIR` is the folder containing this skill's `SKILL.md`. `DATA_
 
 - **Python:** run `/usr/bin/python3 --version`. It needs 3.9 or newer (for `zoneinfo`). On macOS this comes with the Xcode Command Line Tools. If it's missing, the user runs `xcode-select --install` themselves; don't continue until it works.
 - **Connectors:** confirm these are connected in this session (use ToolSearch for each tool name):
-  - Required: **Google Calendar** (`list_calendars`, `list_events`, `create_event`, `update_event`, `delete_event`) and **Gmail** (`search_threads`, `get_thread`).
-  - Strongly recommended: **Slack** (`slack_search_public_and_private`, `slack_read_thread`).
-  - Optional: **Atlassian** (`searchJiraIssuesUsingJql`), **HubSpot** (drafting account tiers), **Gong** (call action items).
+  - Required: a **calendar** and an **email** connector. The tested pair is **Google Calendar** (`list_calendars`, `list_events`, `create_event`, `update_event`, `delete_event`) and **Gmail** (`search_threads`, `get_thread`).
+  - Strongly recommended: a **chat** connector. Tested: **Slack** (`slack_search_public_and_private`, `slack_read_thread`).
+  - Optional: a **task tracker** (tested: Atlassian `searchJiraIssuesUsingJql`), a **CRM** for drafting account tiers (tested: HubSpot), and **call notes** (tested: Gong).
+  - **Using something else** (Outlook, Teams, Linear, Salesforce, Fireflies and so on)? Read `references/CONNECTORS.md` before going further: it's supported by mapping, not yet tested, and step 4b sets it up.
   - Any that are missing or need sign-in: tell the user to connect them in their claude.ai connector settings (or `/mcp`), and carry on with what's there. Note which sources Sage will run without.
 - **Scheduled runs** need the Claude desktop app (its Scheduled tasks feature). Without it Sage still works on demand.
 
@@ -38,9 +39,15 @@ ENGINE init --email <email> --calendar <calendar id> --timezone <tz> --internal-
 
 Leave out any flag you have no value for. `init` creates DATA_DIR with `config.json`, `accounts.md` and `inbox.md`, and prints anything still unset. It's safe to re-run.
 
+## 4b. Other calendars and tools (skip if everything is the tested set)
+
+1. Follow `references/CONNECTORS.md`: find the user's tools with ToolSearch, read each tool's schema, and decide the mapping for every `change` field. Write it to `DATA_DIR/connectors.md` in the shape that file shows. Add any link hosts their tools use to `extra_link_hosts` in `config.json`.
+2. For a calendar other than Google, re-run `ENGINE init --calendar-provider <short name, e.g. microsoft365>`.
+3. **Round-trip test, before anything else touches their calendar.** Ask first, then create one throwaway event through the mapping: title "Sage test", tomorrow 07:00 to 07:05, description `<p>Sage round-trip test</p><small>sage:v1 kind=task keys=test:roundtrip</small>`, Sage colour, private, free, no reminder. List it back and check every one of those came back as set, the marker most of all. Then delete it and confirm it's gone. Record the result in `connectors.md`. **If the marker didn't survive, stop and tell the user:** Sage recognises its own events by it, so it can't run safely on that calendar. If only colour failed, set `"done_by_colour": false` and carry on.
+
 ## 5. Draft their account priorities
 
-If HubSpot is connected:
+If a CRM other than HubSpot is connected, use the approach in `references/CONNECTORS.md` (Salesforce: open opportunities they own or are on the team for). If HubSpot is connected:
 1. `search_owners` with the user's email to get their owner ID.
 2. `search_properties` on DEAL with keywords like `se_owner`, `solutions_engineer`, `sales_engineer` to find an SE-owner property. SEs are usually the SE owner; AEs are `hubspot_owner_id`.
 3. `search_crm_objects` for open deals (`hs_is_closed = false`) where that property equals their owner ID, with `dealname`, `closedate`, `hs_manual_forecast_category`, `dealtype`, `amount_in_home_currency`, sorted by close date.

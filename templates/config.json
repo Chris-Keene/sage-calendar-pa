@@ -1,8 +1,9 @@
 {
   "_about": "Sage settings. Keys starting with _ are comments. Times are local to `timezone`. Setup (sage.py init) fills in the identity block; everything else has a sensible default you can tune.",
-  "_identity": "Filled in by setup. calendar_id is usually your email. slack_user_id looks like U0123ABC. jira_* come from the Atlassian connector; leave blank to skip Jira.",
+  "_identity": "Filled in by setup. calendar_provider is google unless setup mapped another calendar (references/CONNECTORS.md). calendar_id is usually your email. slack_user_id looks like U0123ABC. jira_* come from the Atlassian connector; leave blank to skip Jira.",
   "my_email": "",
   "calendar_id": "primary",
+  "calendar_provider": "google",
   "timezone": "Europe/London",
   "internal_domains": [],
   "slack_user_id": "",
@@ -71,5 +72,7 @@
   "banner": true,
   "snooze_working_days": 3,
   "stale_days": 10,
-  "roll_warning": 3
+  "roll_warning": 3,
+  "_links": "Blocks only link to known hosts. Add your own (a self-hosted Jira, your CRM domain) here.",
+  "extra_link_hosts": []
 }
